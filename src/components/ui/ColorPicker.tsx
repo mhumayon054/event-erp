@@ -1,0 +1,3 @@
+'use client';
+const colors=['#2563eb','#0f766e','#7c3aed','#b45309','#be123c','#334155','#111827','#15803d'];
+export function ColorPicker({value,onChange}:{value:string;onChange:(v:string)=>void}){return <div className="color-picker"><div className="color-swatches">{colors.map(c=><button key={c} type="button" aria-label={`Use ${c}`} className={value.toLowerCase()===c?'active':''} style={{background:c}} onClick={()=>onChange(c)}/>)}</div><div className="hex-input"><span style={{background:value}}/><input value={value} maxLength={7} onChange={e=>{const v=e.target.value;if(/^#[0-9a-fA-F]{0,6}$/.test(v))onChange(v)}} onBlur={()=>{if(!/^#[0-9a-fA-F]{6}$/.test(value))onChange('#2563eb')}}/></div></div>}

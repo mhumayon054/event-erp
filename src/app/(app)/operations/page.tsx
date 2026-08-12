@@ -1,0 +1,19 @@
+'use client';
+import { useEffect, useState } from 'react';
+import { getResource, openWhatsApp, postAction } from '@/lib/client';
+import { money, shortDate } from '@/lib/format';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Loading } from '@/components/ui/Loading';
+import { Icon } from '@/components/ui/Icon';
+import { Toast } from '@/components/ui/Toast';
+
+export default function OperationsPage(){
+ const[data,setData]=useState<any>(null);const[toast,setToast]=useState<{m:string;t:'success'|'error'}|null>(null);
+ async function load(){setData(await getResource('operations'))} useEffect(()=>{load()},[]);
+ async function toggle(id:string){try{await postAction('toggleReadiness',{id});await load()}catch(e){setToast({m:e instanceof Error?e.message:'Update failed',t:'error'})}}
+ async function finalize(id:string){try{await postAction('toggleFinalize',{id});await load();setToast({m:'Event lock updated.',t:'success'})}catch(e){setToast({m:e instanceof Error?e.message:'Update failed',t:'error'})}}
+ async function remind(bookingId:string){try{const r:any=await postAction('sendPaymentReminder',{bookingId});openWhatsApp(r.whatsapp?.link);setToast({m:r.whatsapp?.status==='sent'?'Payment reminder sent.':'WhatsApp reminder prepared.',t:'success'})}catch(e){setToast({m:e instanceof Error?e.message:'Reminder failed',t:'error'})}}
+ if(!data)return <Loading/>;
+ return <><PageHeader title="Event Readiness" description="The owner can see exactly what is pending before every upcoming function — without calling five people."/>
+ <div className="operations-list">{data.bookings.map((b:any)=>{const done=b.readiness.filter((r:any)=>r.done).length;const pct=b.readiness.length?Math.round(done/b.readiness.length*100):0;return <section className="panel operation-card" key={b.id}><div className="operation-top"><div><div className="operation-title"><strong>{b.customerName}</strong><span className="code-text">{b.code}</span>{b.finalized?<span className="status-pill status-confirmed"><Icon name="lock-fill" size={11}/>Finalized</span>:null}</div><p>{shortDate(b.eventDate)} · {b.shift} · {b.hallName} · {b.guests} guests</p></div><div className="readiness-score"><div className={`score-ring ${pct===100?'complete':''}`} style={{['--score' as any]:`${pct*3.6}deg`}}><span>{pct}%</span></div><small>Ready</small></div></div><div className="operation-finance"><div><span>Total</span><strong>{money(b.totalAmount)}</strong></div><div><span>Received</span><strong className="text-green">{money(b.financials.paid)}</strong></div><div><span>Balance</span><strong className={b.financials.balance>0?'text-orange':'text-green'}>{money(b.financials.balance)}</strong></div><div><span>Vendor Tasks</span><strong>{b.tasks.filter((t:any)=>t.status!=='done').length} pending</strong></div></div><div className="checklist-grid">{b.readiness.map((r:any)=><button className={`check-card ${r.done?'done':''}`} key={r.id} onClick={()=>toggle(r.id)}><span className="check-box"><Icon name={r.done?'check-lg':''}/></span><span>{r.label}</span></button>)}</div><div className="operation-actions">{b.financials.balance>0?<button className="btn" onClick={()=>remind(b.id)}><Icon name="whatsapp"/>Payment Reminder</button>:null}<button className="btn" onClick={()=>finalize(b.id)}><Icon name={b.finalized?'unlock':'lock'}/>{b.finalized?'Unlock Changes':'Finalize Event'}</button><a className="btn btn-primary" href={`/function-sheets?booking=${b.id}`}><Icon name="file-earmark-text"/>Function Sheet</a></div></section>})}{!data.bookings.length?<div className="panel empty-state"><span className="empty-icon"><Icon name="calendar2-check"/></span><strong>No confirmed events</strong><p>Confirmed bookings will appear here with readiness checklists.</p></div>:null}</div>{toast?<Toast message={toast.m} type={toast.t} onClose={()=>setToast(null)}/>:null}</>;
+}

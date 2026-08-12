@@ -1,0 +1,29 @@
+{
+  "name": "eventflow-marquee-operations",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Lightweight single-tenant marquee booking and event operations system",
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "qa": "node scripts/qa-check.mjs",
+    "backup": "node scripts/backup.mjs",
+    "cron:run": "node scripts/run-cron.mjs"
+  },
+  "dependencies": {
+    "jspdf": "2.5.2",
+    "jspdf-autotable": "3.8.4",
+    "next": "14.2.5",
+    "react": "18.3.1",
+    "react-dom": "18.3.1"
+  },
+  "devDependencies": {
+    "@types/node": "20.14.10",
+    "@types/react": "18.3.3",
+    "@types/react-dom": "18.3.0",
+    "eslint": "8.57.0",
+    "eslint-config-next": "14.2.5",
+    "typescript": "5.5.4"
+  }
+}
