@@ -4,8 +4,8 @@ import { readData } from '@/lib/store';
 
 export const dynamic = 'force-dynamic';
 
-export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const user = requireUser();
-  const data = readData();
-  return <AppShell settings={data.settings} user={{name:user.name,role:user.role,expiresAt:user.expiresAt}}>{children}</AppShell>;
+export default async function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const user = await requireUser();
+  const data = await readData();
+  return <AppShell settings={data.settings} user={{ name: user.name, role: user.role, expiresAt: user.expiresAt }}>{children}</AppShell>;
 }

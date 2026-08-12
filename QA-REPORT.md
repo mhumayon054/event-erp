@@ -1,37 +1,44 @@
-# Demo-Ready QA Report
+# EventFlow v1.5 Demo Cloud — QA Report
 
-This build was reviewed specifically for remote prospective-client demos and white-label venue delivery.
+## Completed checks
 
-## Passed checks
+- Static project QA script: **PASS**
+- TypeScript/TSX parser pass across all source files: **PASS (42 files, 0 syntax errors)**
+- Local storage runtime initialization: **PASS**
+- Automatic demo seed: **PASS**
+  - 6 bookings
+  - 5 inquiries
+  - 5 verified payment records
+  - 5 vendor tasks
+  - mixed readiness states, completed events and an active booking hold
+- Temporary demo account creation: **PASS**
+- Generated demo-password verification: **PASS**
+- Manual demo-account revoke: **PASS**
+- Refresh Demo Records workflow/store function: **PASS**
+- Demo access expiry is enforced by both login validation and authenticated session lookup.
+- Custom controls QA remains enabled for dropdown/date/time/color controls.
+- Collapsed sidebar stability fixes from v1.4 are preserved.
 
-- Static route/workflow QA (`npm run qa`)
-- TypeScript/TSX syntax parse across all source files
-- Relative local import resolution
-- CSS brace/integrity check
-- No native `<select>` controls remain in application source
-- No native browser date, time or color inputs remain
-- No native `window.confirm` / `window.prompt` dialogs remain
-- Temporary demo credential generation and password verification runtime test
-- Demo revocation and session cleanup runtime test
-- Demo WhatsApp safety runtime test: demo role is forced to one-click WhatsApp link mode and cannot call Cloud API sending
-- Demo permissions: Settings/Audit and sensitive configuration actions are blocked
-- White-label marquee display name is used in the application header and public login screen
-- Header/sidebar control sizes and custom control styling use shared design tokens/styles
+## Vercel/serverless storage
 
-## Demo safety model
+This build no longer relies on the Vercel filesystem when cloud storage variables are present. It supports Upstash Redis REST storage through either:
 
-Use a dedicated demo installation/workspace when sharing access with a prospective client. A demo user can test operational workflows and see records in that demo workspace, but cannot change venue/security settings or WhatsApp API configuration. Demo access can expire automatically or be revoked immediately.
+- `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN`, or
+- `KV_REST_API_URL` + `KV_REST_API_TOKEN`.
 
-## Build-environment note
+Writes are serialized with a short Redis distributed lock so separate serverless function instances do not overwrite each other during normal demo usage.
 
-A full `next build` could not be executed inside the delivery sandbox because the npm registry is not reachable from this environment and dependencies are intentionally not bundled into the ZIP. This is an environment limitation, not a passed build claim.
+The external Upstash endpoint cannot be provisioned/tested from this isolated build environment because no user-owned Vercel/Upstash account is connected here. The REST implementation follows the provider's documented command-array API and Bearer-token authentication. Perform the final live deployment smoke test after connecting the Vercel Marketplace storage integration.
 
-Before hosting, run on a machine with npm access:
+## Final live smoke test after Vercel deploy
 
-```bash
-npm install
-npm run qa
-npm run build
-```
-
-The current lightweight storage adapter is a local server-side JSON file. Host this version on a persistent Node/VPS instance. Use PostgreSQL (or another durable database) before deploying it as a stateful serverless/Vercel application.
+1. Open the production URL and verify login.
+2. Change the owner password from `admin123`.
+3. Rename the venue in Settings and reload; verify header/login branding.
+4. Click **Refresh Demo Records**; verify sample data repopulates with current/future dates.
+5. Create a 24-hour temporary demo account.
+6. Open an incognito window and sign in with the demo credentials.
+7. Verify Settings/Audit/security controls are restricted for the demo role.
+8. Create/edit a booking and refresh the page; verify the change persists (cloud-store check).
+9. Revoke the demo account from the owner session; verify the demo session loses access.
+10. Generate a quotation / receipt / function-sheet PDF and test the WhatsApp prepared-link workflow.

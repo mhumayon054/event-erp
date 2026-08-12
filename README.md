@@ -65,15 +65,16 @@ The public login page does not expose the default owner credentials.
 
 ## Data storage
 
-This build intentionally uses a small server-side JSON data store at:
+EventFlow now has an automatic dual storage adapter:
 
-`data/eventflow.json`
+- **Local / VPS mode:** when no cloud Redis variables are present, it uses `data/eventflow.json` with serialized atomic writes.
+- **Vercel / serverless mode:** when `UPSTASH_REDIS_REST_URL` + `UPSTASH_REDIS_REST_TOKEN` (or the supported `KV_REST_API_*` aliases) are present, the complete workspace state is stored in Upstash Redis through its REST API. A short distributed lock serializes writes across serverless function instances.
 
-Writes are serialized and saved atomically (temporary file + rename). This keeps the deployment extremely lightweight and makes each marquee installation portable.
+This means the same project can run locally with zero database setup and can also keep persistent data on Vercel after connecting an Upstash Redis integration.
 
-Recommended deployment model for this version: **one Node/VPS instance per marquee**. Do not run multiple horizontally-scaled app instances against the same local JSON file. If you later want one central multi-tenant SaaS, migrate the storage layer to PostgreSQL while keeping the UI/workflow layer.
+The first empty workspace automatically contains realistic demo data. Before showing a new prospect, use **Settings → Workspace Data → Refresh Demo Records** to rebuild sample records with fresh relative dates. Venue identity, halls, menu, vendors, owner account and temporary demo accounts are preserved.
 
-**Important:** do not use the local JSON storage build as a stateful Vercel/serverless deployment. Serverless filesystems are not durable application databases. For a remote demo, use a small Node/VPS instance with this build, or migrate the storage adapter to PostgreSQL before deploying on a serverless platform.
+For exact Vercel steps, read `VERCEL-DEMO-DEPLOY.md`.
 
 ## Backups
 
@@ -159,4 +160,4 @@ Before delivery to a real venue, also run:
 
 ## Important architecture note
 
-This project is intentionally **single-tenant and lightweight**, matching the plan of deploying/configuring it separately for each marquee and charging setup + monthly managed support. For a future centralized SaaS with many marquees inside one deployment, the next architecture step should be PostgreSQL + tenant IDs + object storage + centrally managed WhatsApp credentials.
+This project is intentionally **single-tenant and lightweight**. For demos, one Vercel deployment + persistent Redis store works well. For paying venues, use a separate deployment/storage namespace per marquee. A future centralized multi-tenant SaaS would still benefit from PostgreSQL + tenant IDs + object storage + centrally managed WhatsApp credentials.

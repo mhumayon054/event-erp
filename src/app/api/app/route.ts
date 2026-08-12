@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getCurrentUser } from '@/lib/auth';
-import { createAudit, createReadinessForBooking, hashPassword, makeId, mutateData, nextCode, readData, verifyPassword } from '@/lib/store';
-import type { Booking, BookingMenuSelection, InquiryStatus } from '@/lib/types';
+import { createAudit, createReadinessForBooking, hashPassword, makeId, mutateData, nextCode, readData, seedOperationalDemoData, verifyPassword } from '@/lib/store';
+import type { AppData, Booking, BookingMenuSelection, InquiryStatus } from '@/lib/types';
 import { bookingReceiptMessage, deliverMessage, paymentReminderMessage, vendorTaskMessage } from '@/lib/whatsapp';
 import { createTemporaryDemoUser, revokeTemporaryDemoUser } from '@/lib/demo-access';
 
@@ -11,14 +11,14 @@ function unauthorized() { return NextResponse.json({ ok: false, error: 'Unauthor
 function num(v: unknown, fallback = 0) { const n = Number(v); return Number.isFinite(n) ? n : fallback; }
 function text(v: unknown) { return String(v ?? '').trim(); }
 
-function bookingFinancials(data: ReturnType<typeof readData>, bookingId: string) {
+function bookingFinancials(data: AppData, bookingId: string) {
   const booking = data.bookings.find((b) => b.id === bookingId);
   if (!booking) return { paid: 0, balance: 0 };
   const paid = data.payments.filter((p) => p.bookingId === bookingId && p.status === 'verified').reduce((s, p) => s + p.amount, 0);
   return { paid, balance: Math.max(0, booking.totalAmount - paid) };
 }
 
-function dashboard(data: ReturnType<typeof readData>) {
+function dashboard(data: AppData) {
   const today = new Date();
   const todayStr = today.toISOString().slice(0, 10);
   const in7 = new Date(today.getTime() + 7 * 86400000).toISOString().slice(0, 10);
@@ -46,9 +46,9 @@ function dashboard(data: ReturnType<typeof readData>) {
 }
 
 export async function GET(request: Request) {
-  const user = getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return unauthorized();
-  const data = readData();
+  const data = await readData();
   const url = new URL(request.url);
   const resource = url.searchParams.get('resource') || 'bootstrap';
   const safeUser = user;
@@ -74,14 +74,14 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const user = getCurrentUser();
+  const user = await getCurrentUser();
   if (!user) return unauthorized();
   const body = await request.json().catch(() => ({}));
   const action = text(body.action);
 
   try {
     const result = await mutateData(async (data) => {
-      if (user.role === 'demo' && ['saveSettings','addHall','toggleHall','saveAutomations','changePassword','clearOperationalData','createDemoAccess','revokeDemoAccess'].includes(action)) throw new Error('This setting is locked in demo access.');
+      if (user.role === 'demo' && ['saveSettings','addHall','toggleHall','saveAutomations','changePassword','clearOperationalData','resetDemoWorkspace','createDemoAccess','revokeDemoAccess'].includes(action)) throw new Error('This setting is locked in demo access.');
       if (action === 'createInquiry') {
         const now = new Date().toISOString();
         const inquiry = {
@@ -177,14 +177,10 @@ export async function POST(request: Request) {
         const demo=revokeTemporaryDemoUser(data,text(body.id));createAudit(data,user.name,'Revoked','Demo access',demo.id,`${demo.accessLabel||demo.name} access revoked.`);return{ok:true};
       }
       if (action === 'changePassword') {const u=data.users.find(x=>x.id===user.id);if(!u)throw new Error('User not found.');if(!verifyPassword(u,text(body.currentPassword)))throw new Error('Current password is incorrect.');const np=text(body.newPassword);if(np.length<8)throw new Error('New password must be at least 8 characters.');const hp=hashPassword(np);u.passwordSalt=hp.salt;u.passwordHash=hp.hash;u.mustChangePassword=false;createAudit(data,user.name,'Updated','User',u.id,'Account password changed.');return{ok:true};}
-      if (action === 'seedDemo') {
-        if(data.bookings.length||data.inquiries.length||data.payments.length) throw new Error('Demo data can only be loaded into an empty workspace.');
-        const today=new Date(); const d=(plus:number)=>{const x=new Date(today.getTime()+plus*86400000);return x.toISOString().slice(0,10)}; const now=new Date().toISOString();
-        const inq={id:makeId('inq'),code:nextCode('INQ',data.inquiries),customerName:'Hamza Khan',phone:'+92 300 5551234',eventDate:d(18),shift:'Evening',eventType:'Walima',guests:320,budget:1100000,source:'WhatsApp',status:'follow_up' as const,notes:'Family will confirm stage package.',nextFollowUp:d(1),createdAt:now,updatedAt:now};data.inquiries.push(inq);
-        const sampleBooking=(name:string,phone:string,plus:number,hallId:string,guests:number,stage:string,stageCost:number):Booking=>{const sels=data.menuItems.slice(0,5).map(m=>({itemId:m.id,name:m.name,category:m.category,priceDelta:m.priceDelta}));const base=data.settings.defaultBaseRate;const phr=base+sels.reduce((s,m)=>s+m.priceDelta,0);return{id:makeId('book'),code:nextCode('BK',data.bookings),customerName:name,phone,eventDate:d(plus),shift:'Evening',hallId,eventType:'Wedding',guests,status:'confirmed',baseRate:base,stageName:stage,stageCost,otherCharges:0,discount:0,menuSelections:sels,perHeadRate:phr,totalAmount:guests*phr+stageCost,notes:'',specialInstructions:'VIP family table near stage.',arrivalTime:'18:30',dinnerTime:'21:00',finalized:false,createdAt:now,updatedAt:now};};
-        const b1=sampleBooking('Ali Raza','+92 301 1112233',2,data.halls[0].id,420,'Classic Ivory',90000);data.bookings.push(b1);createReadinessForBooking(data,b1);const b2=sampleBooking('Usman Shah','+92 302 3334455',5,data.halls[1].id,210,'Emerald Floral',65000);data.bookings.push(b2);createReadinessForBooking(data,b2);data.readiness.filter(r=>r.bookingId===b1.id).slice(0,4).forEach(r=>r.done=true);
-        data.payments.push({id:makeId('pay'),bookingId:b1.id,amount:350000,method:'Bank Transfer',reference:'TXN-10021',status:'verified',paidAt:d(0),notes:'Advance received',createdAt:now},{id:makeId('pay'),bookingId:b2.id,amount:200000,method:'Cash',reference:'REC-10022',status:'verified',paidAt:d(0),notes:'Advance received',createdAt:now});
-        createAudit(data,user.name,'Loaded','Demo','workspace','Demo workspace data loaded.');return{ok:true};
+      if (action === 'seedDemo' || action === 'resetDemoWorkspace') {
+        if (user.role !== 'owner') throw new Error('Owner access required.');
+        const summary = seedOperationalDemoData(data, user.name);
+        return { ok: true, summary };
       }
       if (action === 'clearOperationalData') {if(user.role!=='owner')throw new Error('Owner access required.');data.inquiries=[];data.bookings=[];data.payments=[];data.vendorTasks=[];data.readiness=[];data.automationLogs=[];createAudit(data,user.name,'Cleared','Workspace','operations','Operational data cleared.');return{ok:true};}
       throw new Error('Unknown action.');
